@@ -26,3 +26,16 @@ POST /api/network/
 ## 🎯 Goal
 
 To provide an intelligent decision support system for identifying secure and malicious Wi-Fi networks.
+
+
+🔌 Serial Architecture (Offline Mode)
+
+AirFence uses a serial communication bridge:
+
+ESP32 → USB → Python (serial_bridge.py) → Django API
+
+This allows:
+
+Offline operation
+No Wi-Fi dependency
+Reliable real-time data transfer
