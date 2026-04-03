@@ -2,6 +2,7 @@ from scanner.models import AccessPoint, ScanSession, NetworkObservation
 from .classifier import classify_encryption
 from .detector import is_suspicious_ssid, detect_duplicates
 from .scoring import calculate_trust_score
+from scanner.ml.predict import predict_network
 
 
 def process_network(data):
@@ -17,10 +18,10 @@ def process_network(data):
         defaults={"ssid": ssid}
     )
 
-    # 2. Create Session (for now)
+    # 2. Create Session
     session = ScanSession.objects.create(device_name="ESP32")
 
-    # 3. Classification
+    # 3. Rule-Based Classification
     classification, risk_score = classify_encryption(encryption)
 
     # 4. Detection
@@ -35,7 +36,14 @@ def process_network(data):
         is_evil
     )
 
-    # 6. Save Observation
+    # 🔥 6. ML Prediction (NEW)
+    ml_prediction = predict_network({
+        "encryption": encryption,
+        "rssi": rssi,
+        "channel": channel
+    })
+
+    # 7. Save Observation (UPDATED)
     NetworkObservation.objects.create(
         access_point=ap,
         session=session,
@@ -48,10 +56,14 @@ def process_network(data):
         is_evil_twin=is_evil,
         classification=classification,
         risk_score=risk_score,
-        trust_score=trust_score
+        trust_score=trust_score,
+        ml_classification=ml_prediction   # 🔥 ADDED
     )
 
+    # 8. Return Response
     return {
+        "status": "success",
         "classification": classification,
+        "ml_prediction": ml_prediction,   # 🔥 ADDED
         "trust_score": trust_score
     }

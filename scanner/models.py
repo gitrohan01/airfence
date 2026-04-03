@@ -36,10 +36,13 @@ class NetworkObservation(models.Model):
     duplicate_count = models.IntegerField(default=1)
     is_evil_twin = models.BooleanField(default=False)
 
-    # Decision Outputs
+    # Decision Outputs (Rule-Based)
     classification = models.CharField(max_length=20)
     risk_score = models.FloatField(default=0)   # 0–1
     trust_score = models.FloatField(default=0)  # 0–5
+
+    # 🔥 NEW: ML Output
+    ml_classification = models.CharField(max_length=20, null=True, blank=True)
 
     timestamp = models.DateTimeField(auto_now_add=True)
 

@@ -69,3 +69,45 @@ def download_excel(request):
     generate_excel(file_path, data)
 
     return FileResponse(open(file_path, 'rb'), as_attachment=True)
+
+
+
+
+def dashboard(request):
+    query = request.GET.get('q')
+    filter_type = request.GET.get('filter')
+
+    latest_ids = (
+        NetworkObservation.objects
+        .values('ssid')
+        .annotate(latest_id=Max('id'))
+        .values_list('latest_id', flat=True)
+    )
+
+    networks = NetworkObservation.objects.filter(id__in=latest_ids)
+
+    # 🔍 Search
+    if query:
+        networks = networks.filter(ssid__icontains=query)
+
+    # 🔍 Filter
+    if filter_type:
+        networks = networks.filter(classification=filter_type)
+
+    networks = networks.order_by('trust_score')
+
+    # Counts
+    secure_count = networks.filter(classification="Secure").count()
+    risky_count = networks.filter(classification="Risky").count()
+    critical_count = networks.filter(classification="Critical").count()
+
+    # 🚨 Alert
+    alert = critical_count > 0
+
+    return render(request, 'scanner/dashboard.html', {
+        'networks': networks,
+        'secure_count': secure_count,
+        'risky_count': risky_count,
+        'critical_count': critical_count,
+        'alert': alert
+    })

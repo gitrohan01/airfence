@@ -5,3 +5,15 @@ db.sqlite3
 *.log
 .vscode/
 .idea/
+
+
+# Generated files
+report.pdf
+*.xlsx
+
+# ML model file
+scanner/ml/model.pkl
+
+# Python cache
+__pycache__/
+*.pyc
