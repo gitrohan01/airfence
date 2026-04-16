@@ -48,3 +48,26 @@ class NetworkObservation(models.Model):
 
     def __str__(self):
         return f"{self.ssid} - {self.classification}"
+    
+
+# 🔥 Simulation Session (each awareness test)
+class SimulationSession(models.Model):
+    name = models.CharField(max_length=100)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Simulation {self.id} - {self.name}"
+
+
+# 🔥 Simulation Result (user behavior)
+class SimulationResult(models.Model):
+    session = models.ForeignKey(SimulationSession, on_delete=models.CASCADE)
+
+    device_id = models.CharField(max_length=100)
+    action = models.CharField(max_length=50)  # connected / completed
+    risk_level = models.CharField(max_length=20)
+
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.device_id} - {self.risk_level}"

@@ -34,12 +34,30 @@
         <a href="/?filter=Critical" class="btn btn-danger">Critical</a>
     </div>
 
+    <div class="mb-3 text-center">
+    <button onclick="startSimulation()" class="btn btn-danger">
+        🚨 Start Simulation
+    </button>
+</div>
+
     <!-- 🔥 DOWNLOAD BUTTONS -->
     <div class="mb-3 text-center">
         <a href="/download/pdf/" class="btn btn-danger">Download PDF</a>
         <a href="/download/excel/" class="btn btn-success">Download Excel</a>
     </div>
 
+    <div class="mb-3 text-center">
+    <a href="/simulation/" class="btn btn-primary">
+        🎯 Simulation Dashboard
+    </a>
+</div>
+
+
+<div class="mb-3 text-center">
+    <a href="/evil-twins/" class="btn btn-danger">
+        🚨 Evil Twin Detection
+    </a>
+</div>
     <!-- 🔥 SUMMARY CARDS -->
     <div class="row mb-4 text-center">
         <div class="col">
@@ -166,6 +184,22 @@ setInterval(() => {
         window.location.reload();
     }
 }, 5000);
+</script>
+
+<script>
+function startSimulation() {
+    fetch('/api/simulation/start/', {
+        method: 'POST'
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert("Simulation Started! Session ID: " + data.session_id);
+    })
+    .catch(err => {
+        alert("Error starting simulation");
+        console.error(err);
+    });
+}
 </script>
 
 </body>
