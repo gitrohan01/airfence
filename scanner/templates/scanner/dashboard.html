@@ -2,7 +2,6 @@
 <html>
 <head>
     <title>AirFence Dashboard</title>
-
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
@@ -10,23 +9,21 @@
 
 <div class="container mt-4">
 
-    <!-- 🔥 TITLE -->
     <h2 class="text-center mb-4">🛡️ AirFence Dashboard</h2>
 
-    <!-- 🚨 ALERT -->
     {% if alert %}
     <div class="alert alert-danger text-center">
-        🚨 WARNING: Unsafe networks detected nearby!
+        🚨 Unsafe networks detected nearby!
     </div>
     {% endif %}
 
-    <!-- 🔍 SEARCH -->
+    <!-- SEARCH -->
     <form method="GET" class="mb-3 text-center">
         <input type="text" name="q" placeholder="Search SSID..." class="form-control w-50 d-inline">
         <button type="submit" class="btn btn-primary">Search</button>
     </form>
 
-    <!-- 🔘 FILTER BUTTONS -->
+    <!-- FILTER -->
     <div class="mb-3 text-center">
         <a href="/" class="btn btn-light">All</a>
         <a href="/?filter=Secure" class="btn btn-success">Secure</a>
@@ -34,31 +31,26 @@
         <a href="/?filter=Critical" class="btn btn-danger">Critical</a>
     </div>
 
-    <div class="mb-3 text-center">
-    <button onclick="startSimulation()" class="btn btn-danger">
-        🚨 Start Simulation
-    </button>
-</div>
+    <!-- 🔥 CLEAN NAVIGATION -->
+    <div class="mb-4 text-center">
 
-    <!-- 🔥 DOWNLOAD BUTTONS -->
-    <div class="mb-3 text-center">
-        <a href="/download/pdf/" class="btn btn-danger">Download PDF</a>
-        <a href="/download/excel/" class="btn btn-success">Download Excel</a>
+        <a href="/simulation/" class="btn btn-danger m-1">
+            🎯 Simulation Module
+        </a>
+
+        <a href="/evil-twins/" class="btn btn-warning m-1">
+            🚨 Evil Twin Detection
+        </a>
+
     </div>
 
+    <!-- DOWNLOAD -->
     <div class="mb-3 text-center">
-    <a href="/simulation/" class="btn btn-primary">
-        🎯 Simulation Dashboard
-    </a>
-</div>
+        <a href="/download/pdf/" class="btn btn-danger">PDF</a>
+        <a href="/download/excel/" class="btn btn-success">Excel</a>
+    </div>
 
-
-<div class="mb-3 text-center">
-    <a href="/evil-twins/" class="btn btn-danger">
-        🚨 Evil Twin Detection
-    </a>
-</div>
-    <!-- 🔥 SUMMARY CARDS -->
+    <!-- SUMMARY -->
     <div class="row mb-4 text-center">
         <div class="col">
             <div class="card bg-success text-white">
@@ -88,73 +80,42 @@
         </div>
     </div>
 
-    <!-- 🔥 TABLE -->
-    <table class="table table-dark table-striped table-hover">
+    <!-- TABLE -->
+    <table class="table table-dark table-striped">
         <thead>
             <tr>
                 <th>SSID</th>
                 <th>Encryption</th>
                 <th>RSSI</th>
-                <th>Rule-Based</th>
-                <th>ML Prediction</th> <!-- 🔥 NEW -->
-                <th>Trust Score</th>
-                <th>Recommendation</th>
+                <th>Status</th>
+                <th>Trust</th>
+                <th>Action</th>
                 <th>Time</th>
             </tr>
         </thead>
 
         <tbody>
             {% for net in networks %}
-            <tr class="{% if net.classification == 'Critical' %}table-danger{% endif %}">
+            <tr>
                 <td>{{ net.ssid }}</td>
                 <td>{{ net.encryption }}</td>
                 <td>{{ net.rssi }}</td>
 
-                <!-- Rule-Based -->
                 <td>
-                    {% if net.classification == "Secure" %}
-                        <span class="badge bg-success">Secure</span>
-                    {% elif net.classification == "Risky" %}
-                        <span class="badge bg-warning text-dark">Risky</span>
-                    {% else %}
-                        <span class="badge bg-danger">Critical</span>
-                    {% endif %}
+                    <span class="badge 
+                        {% if net.classification == 'Secure' %}bg-success
+                        {% elif net.classification == 'Risky' %}bg-warning text-dark
+                        {% else %}bg-danger{% endif %}">
+                        {{ net.classification }}
+                    </span>
                 </td>
 
-                <!-- 🔥 ML Prediction -->
-                <td>
-                    {% if net.ml_classification == "Secure" %}
-                        <span class="badge bg-success">{{ net.ml_classification }}</span>
-                    {% elif net.ml_classification == "Risky" %}
-                        <span class="badge bg-warning text-dark">{{ net.ml_classification }}</span>
-                    {% else %}
-                        <span class="badge bg-danger">{{ net.ml_classification }}</span>
-                    {% endif %}
-                </td>
+                <td>{{ net.trust_score }}</td>
 
-                <!-- Trust Score -->
                 <td>
-                    <div class="progress">
-                        <div class="progress-bar 
-                            {% if net.trust_score >= 4 %}bg-success
-                            {% elif net.trust_score >= 2 %}bg-warning
-                            {% else %}bg-danger
-                            {% endif %}"
-                            style="width: {{ net.trust_score|floatformat:0 }}0%">
-                            {{ net.trust_score }}
-                        </div>
-                    </div>
-                </td>
-
-                <!-- Recommendation -->
-                <td>
-                    {% if net.classification == "Secure" %}
-                        ✅ Safe to connect
-                    {% elif net.classification == "Risky" %}
-                        ⚠️ Use caution
-                    {% else %}
-                        🚫 Avoid network
-                    {% endif %}
+                    {% if net.classification == "Secure" %}✅
+                    {% elif net.classification == "Risky" %}⚠️
+                    {% else %}🚫{% endif %}
                 </td>
 
                 <td>{{ net.timestamp }}</td>
@@ -165,41 +126,10 @@
 
 </div>
 
-<!-- 🔥 SMART AUTO REFRESH -->
 <script>
-let typing = false;
-
-const input = document.querySelector('input[name="q"]');
-
-input.addEventListener('input', function() {
-    typing = true;
-
-    setTimeout(() => {
-        typing = false;
-    }, 3000);
-});
-
 setInterval(() => {
-    if (!typing) {
-        window.location.reload();
-    }
-}, 5000);
-</script>
-
-<script>
-function startSimulation() {
-    fetch('/api/simulation/start/', {
-        method: 'POST'
-    })
-    .then(res => res.json())
-    .then(data => {
-        alert("Simulation Started! Session ID: " + data.session_id);
-    })
-    .catch(err => {
-        alert("Error starting simulation");
-        console.error(err);
-    });
-}
+    window.location.reload();
+}, 10000);  // 10 seconds ideal
 </script>
 
 </body>

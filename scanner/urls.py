@@ -5,30 +5,33 @@ from .views import (
     download_pdf,
     download_excel,
     evil_twin_detection,
-    evil_twins_page,   # 🔥 ADD 
+    evil_twins_page,
+
+    # Simulation (SINGLE PAGE)
+    simulation_dashboard,
     start_simulation,
-    log_simulation,
-    simulation_dashboard
-    
+    stop_simulation,
+    log_simulation
 )
 
 urlpatterns = [
-    path('api/network/', receive_network),
+    # 🔥 Core
     path('', dashboard),
+    path('api/network/', receive_network),
 
+    # 📄 Reports
     path('download/pdf/', download_pdf),
     path('download/excel/', download_excel),
 
-    # 🔥 API (already working)
+    # 🚨 Evil Twin
     path('api/evil-twin/', evil_twin_detection),
-
-    # 🔥 NEW UI PAGE
     path('evil-twins/', evil_twins_page),
 
-
-    path('api/simulation/start/', start_simulation),
-    
-    path('api/simulation/log/', log_simulation),
-
+    # 🎯 Simulation (ONE PAGE ONLY)
     path('simulation/', simulation_dashboard),
+
+    # 🔧 Simulation APIs
+    path('api/simulation/start/', start_simulation),
+    path('api/simulation/stop/', stop_simulation),
+    path('api/simulation/log/', log_simulation),
 ]

@@ -1,78 +1,35 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Max
 import json
 
-from .models import NetworkObservation, AccessPoint
+from .models import (
+    NetworkObservation,
+    AccessPoint,
+    SimulationResult,
+    SimulationSession
+)
 from .services.processor import process_network
+from .utils.report_generator import generate_pdf, generate_excel
 
 
-# 🔥 API FUNCTION (IMPORTANT - DO NOT REMOVE)
+# =========================================================
+# 🔥 NETWORK API
+# =========================================================
 @csrf_exempt
 def receive_network(request):
     if request.method == "POST":
         data = json.loads(request.body)
-
         result = process_network(data)
-
         return JsonResponse(result)
 
     return JsonResponse({"error": "Invalid request"}, status=400)
 
 
-# 🔥 DASHBOARD VIEW
-def dashboard(request):
-    latest_ids = (
-        NetworkObservation.objects
-        .values('ssid')
-        .annotate(latest_id=Max('id'))
-        .values_list('latest_id', flat=True)
-    )
-
-    networks = (
-        NetworkObservation.objects
-        .filter(id__in=latest_ids)
-        .order_by('trust_score')
-    )
-
-    secure_count = networks.filter(classification="Secure").count()
-    risky_count = networks.filter(classification="Risky").count()
-    critical_count = networks.filter(classification="Critical").count()
-
-    return render(request, 'scanner/dashboard.html', {
-        'networks': networks,
-        'secure_count': secure_count,
-        'risky_count': risky_count,
-        'critical_count': critical_count
-    })
-
-
-from django.http import FileResponse
-from .utils.report_generator import generate_pdf, generate_excel
-import os
-
-
-def download_pdf(request):
-    data = NetworkObservation.objects.all()[:50]
-
-    file_path = "report.pdf"
-    generate_pdf(file_path, data)
-
-    return FileResponse(open(file_path, 'rb'), as_attachment=True)
-
-
-def download_excel(request):
-    data = NetworkObservation.objects.all()[:50]
-
-    file_path = "report.xlsx"
-    generate_excel(file_path, data)
-
-    return FileResponse(open(file_path, 'rb'), as_attachment=True)
-
-
-
-
+# =========================================================
+# 🛡️ DASHBOARD
+# =========================================================
 def dashboard(request):
     query = request.GET.get('q')
     filter_type = request.GET.get('filter')
@@ -86,22 +43,18 @@ def dashboard(request):
 
     networks = NetworkObservation.objects.filter(id__in=latest_ids)
 
-    # 🔍 Search
     if query:
         networks = networks.filter(ssid__icontains=query)
 
-    # 🔍 Filter
     if filter_type:
         networks = networks.filter(classification=filter_type)
 
     networks = networks.order_by('trust_score')
 
-    # Counts
     secure_count = networks.filter(classification="Secure").count()
     risky_count = networks.filter(classification="Risky").count()
     critical_count = networks.filter(classification="Critical").count()
 
-    # 🚨 Alert
     alert = critical_count > 0
 
     return render(request, 'scanner/dashboard.html', {
@@ -113,9 +66,26 @@ def dashboard(request):
     })
 
 
-from django.shortcuts import render
-from .models import AccessPoint
+# =========================================================
+# 📄 REPORT DOWNLOADS
+# =========================================================
+def download_pdf(request):
+    data = NetworkObservation.objects.all()[:50]
+    file_path = "report.pdf"
+    generate_pdf(file_path, data)
+    return FileResponse(open(file_path, 'rb'), as_attachment=True)
 
+
+def download_excel(request):
+    data = NetworkObservation.objects.all()[:50]
+    file_path = "report.xlsx"
+    generate_excel(file_path, data)
+    return FileResponse(open(file_path, 'rb'), as_attachment=True)
+
+
+# =========================================================
+# 🚨 EVIL TWIN DETECTION
+# =========================================================
 def evil_twins_page(request):
     results = []
 
@@ -131,9 +101,7 @@ def evil_twins_page(request):
                 "status": "⚠️ Possible Evil Twin"
             })
 
-    return render(request, 'scanner/evil_twins.html', {
-        "results": results
-    })
+    return render(request, 'scanner/evil_twins.html', {"results": results})
 
 
 def evil_twin_detection(request):
@@ -153,8 +121,52 @@ def evil_twin_detection(request):
 
     return JsonResponse({"evil_twins": suspicious})
 
-from .models import SimulationResult, SimulationSession
 
+# =========================================================
+# 🎯 SIMULATION MODULE
+# =========================================================
+
+# 🔹 Start Simulation
+@csrf_exempt
+def start_simulation(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+
+        name = data.get("name")
+        if not name:
+            return JsonResponse({"error": "Session name required"}, status=400)
+
+        session = SimulationSession.objects.create(name=name)
+
+        return JsonResponse({
+            "status": "started",
+            "session_id": session.id,
+            "session_name": session.name
+        })
+
+    return JsonResponse({"error": "Use POST request"}, status=400)
+
+
+# 🔹 Stop Simulation
+@csrf_exempt
+def stop_simulation(request):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        session_id = data.get("session_id")
+
+        try:
+            session = SimulationSession.objects.get(id=session_id)
+            session.status = "stopped"
+            session.save()
+
+            return JsonResponse({"status": "stopped"})
+        except SimulationSession.DoesNotExist:
+            return JsonResponse({"error": "Session not found"}, status=404)
+
+    return JsonResponse({"error": "Invalid request"}, status=400)
+
+
+# 🔹 Log Simulation Activity
 @csrf_exempt
 def log_simulation(request):
     if request.method == "POST":
@@ -164,9 +176,12 @@ def log_simulation(request):
         device_id = data.get("device_id")
         action = data.get("action")
 
-        session = SimulationSession.objects.get(id=session_id)
+        try:
+            session = SimulationSession.objects.get(id=session_id)
+        except SimulationSession.DoesNotExist:
+            return JsonResponse({"error": "Invalid session"}, status=404)
 
-        # 🔥 Risk logic
+        # 🔥 Risk Logic
         if action == "connected":
             risk = "High"
         elif action == "completed":
@@ -189,38 +204,36 @@ def log_simulation(request):
     return JsonResponse({"error": "Invalid request"}, status=400)
 
 
-from django.views.decorators.csrf import csrf_exempt
-from .models import SimulationSession
-
-@csrf_exempt
-def start_simulation(request):
-    if request.method == "POST":
-        session = SimulationSession.objects.create(name="Security Test")
-
-        return JsonResponse({
-            "status": "started",
-            "session_id": session.id
-        })
-
-    return JsonResponse({"error": "Use POST request"}, status=400)
 
 
-from .models import SimulationResult, SimulationSession
-
-def simulation_dashboard(request):
-    session_id = request.GET.get("session")
-
+# 🔹 Simulation Control Page
+def simulation_control(request):
     sessions = SimulationSession.objects.all().order_by('-id')
 
+    return render(request, 'scanner/simulation_control.html', {
+        "sessions": sessions
+    })
+
+
+# 🔹 Simulation Dashboard (Results)
+def simulation_dashboard(request):
+    session_id = request.GET.get("session")
+    risk_filter = request.GET.get("risk")
+
+    sessions = SimulationSession.objects.all().order_by('-id')
     results = SimulationResult.objects.all()
 
     if session_id:
         results = results.filter(session_id=session_id)
+
+    if risk_filter:
+        results = results.filter(risk_level=risk_filter)
 
     results = results.order_by('-timestamp')
 
     return render(request, 'scanner/simulation.html', {
         "results": results,
         "sessions": sessions,
-        "selected_session": session_id
+        "selected_session": session_id,
+        "selected_risk": risk_filter
     })

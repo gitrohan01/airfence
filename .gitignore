@@ -1,19 +1,25 @@
+# Python
 __pycache__/
 *.pyc
+
+# Django
 db.sqlite3
-.env
 *.log
+media/
+staticfiles/
+
+# Env
+.env
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
 .vscode/
-.idea/
 
-
-# Generated files
+# Reports
 report.pdf
-*.xlsx
-
-# ML model file
-scanner/ml/model.pkl
-
-# Python cache
-__pycache__/
-*.pyc
+report.xlsx

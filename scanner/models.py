@@ -41,29 +41,43 @@ class NetworkObservation(models.Model):
     risk_score = models.FloatField(default=0)   # 0–1
     trust_score = models.FloatField(default=0)  # 0–5
 
-    # 🔥 NEW: ML Output
+    # 🔥 ML Output
     ml_classification = models.CharField(max_length=20, null=True, blank=True)
 
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"{self.ssid} - {self.classification}"
-    
+
 
 # 🔥 Simulation Session (each awareness test)
 class SimulationSession(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('stopped', 'Stopped'),
+    ]
+
     name = models.CharField(max_length=100)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='active')
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"Simulation {self.id} - {self.name}"
+        return f"{self.name} ({self.status})"
 
 
 # 🔥 Simulation Result (user behavior)
 class SimulationResult(models.Model):
     session = models.ForeignKey(SimulationSession, on_delete=models.CASCADE)
 
+    # Device info
     device_id = models.CharField(max_length=100)
+
+    # 🔥 Future-ready fields (optional but recommended)
+    ip_address = models.CharField(max_length=50, null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+
     action = models.CharField(max_length=50)  # connected / completed
     risk_level = models.CharField(max_length=20)
 

@@ -9,27 +9,69 @@
 
 <div class="container mt-4">
 
+    <!-- 🔥 TITLE -->
     <h2 class="text-center mb-4">🎯 Security Awareness Simulation</h2>
 
+    <!-- 🔙 BACK -->
     <div class="text-center mb-3">
-        <a href="/" class="btn btn-light">Back to Dashboard</a>
+        <a href="/" class="btn btn-light">⬅ Back to Dashboard</a>
     </div>
 
-    <!-- SESSION FILTER -->
-    <form method="GET" class="mb-3 text-center">
-        <select name="session" class="form-select w-50 d-inline">
+    <!-- 🚨 CONTROL PANEL -->
+    <div class="text-center mb-4">
+
+        <button onclick="startSimulation()" class="btn btn-danger m-1">
+            🚨 Start Simulation
+        </button>
+
+        <button onclick="stopSimulation()" class="btn btn-secondary m-1">
+            ⛔ Stop Simulation
+        </button>
+
+    </div>
+
+    <!-- 🔍 FILTERS -->
+    <form method="GET" class="mb-4 text-center">
+
+        <!-- SESSION FILTER -->
+        <select name="session" class="form-select w-25 d-inline">
             <option value="">All Sessions</option>
             {% for s in sessions %}
                 <option value="{{ s.id }}" {% if selected_session == s.id|stringformat:"s" %}selected{% endif %}>
-                    Session {{ s.id }}
+                    {{ s.name }}
                 </option>
             {% endfor %}
         </select>
-        <button class="btn btn-primary">Filter</button>
+
+        <!-- RISK FILTER -->
+        <select name="risk" class="form-select w-25 d-inline">
+            <option value="">All Risk</option>
+            <option value="High" {% if selected_risk == "High" %}selected{% endif %}>High</option>
+            <option value="Medium" {% if selected_risk == "Medium" %}selected{% endif %}>Medium</option>
+            <option value="Low" {% if selected_risk == "Low" %}selected{% endif %}>Low</option>
+        </select>
+
+        <button class="btn btn-primary">Apply Filter</button>
     </form>
 
-    <!-- TABLE -->
-    <table class="table table-dark table-striped">
+    <!-- 🔥 SUMMARY -->
+    <div class="row text-center mb-4">
+
+        <div class="col">
+            <div class="card bg-danger text-white">
+                <div class="card-body">
+                    <h5>High Risk</h5>
+                    <h3>
+                        {{ results|dictsort:"risk_level"|length }}
+                    </h3>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 🔥 TABLE -->
+    <table class="table table-dark table-striped table-hover text-center">
         <thead>
             <tr>
                 <th>Device</th>
@@ -42,9 +84,19 @@
 
         <tbody>
             {% for r in results %}
-            <tr>
+            <tr class="{% if r.risk_level == 'High' %}table-danger{% elif r.risk_level == 'Medium' %}table-warning{% endif %}">
+
                 <td>{{ r.device_id }}</td>
-                <td>{{ r.action }}</td>
+
+                <td>
+                    {% if r.action == "connected" %}
+                        🔌 Connected
+                    {% elif r.action == "completed" %}
+                        ✅ Completed
+                    {% else %}
+                        {{ r.action }}
+                    {% endif %}
+                </td>
 
                 <td>
                     {% if r.risk_level == "High" %}
@@ -56,8 +108,10 @@
                     {% endif %}
                 </td>
 
-                <td>{{ r.session.id }}</td>
+                <td>{{ r.session.name }}</td>
+
                 <td>{{ r.timestamp }}</td>
+
             </tr>
             {% empty %}
             <tr>
@@ -70,6 +124,50 @@
     </table>
 
 </div>
+
+<!-- 🔥 JS CONTROL -->
+<script>
+function startSimulation() {
+    let name = prompt("Enter Session Name:");
+
+    if (!name) return;
+
+    fetch('/api/simulation/start/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name })
+    })
+    .then(res => res.json())
+    .then(data => {
+        alert("Started: " + data.session_name);
+        location.reload();
+    });
+}
+
+function stopSimulation() {
+    let id = prompt("Enter Session ID to stop:");
+
+    if (!id) return;
+
+    fetch('/api/simulation/stop/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: id })
+    })
+    .then(res => res.json())
+    .then(() => {
+        alert("Stopped");
+        location.reload();
+    });
+}
+</script>
+
+<!-- 🔥 AUTO REFRESH -->
+<script>
+setInterval(() => {
+    window.location.reload();
+}, 8000);
+</script>
 
 </body>
 </html>
