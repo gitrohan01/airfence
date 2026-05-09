@@ -36,7 +36,7 @@ class NetworkObservation(models.Model):
     duplicate_count = models.IntegerField(default=1)
     is_evil_twin = models.BooleanField(default=False)
 
-    # Decision Outputs (Rule-Based)
+    # Decision Outputs
     classification = models.CharField(max_length=20)
     risk_score = models.FloatField(default=0)   # 0–1
     trust_score = models.FloatField(default=0)  # 0–5
@@ -63,6 +63,9 @@ class SimulationSession(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
 
+    # 🔥 NEW FIELD (IMPORTANT FOR AUTO-STOP)
+    last_activity = models.DateTimeField(auto_now=True)
+
     def __str__(self):
         return f"{self.name} ({self.status})"
 
@@ -74,12 +77,12 @@ class SimulationResult(models.Model):
     # Device info
     device_id = models.CharField(max_length=100)
 
-    # 🔥 Future-ready fields (optional but recommended)
+    # Optional tracking
     ip_address = models.CharField(max_length=50, null=True, blank=True)
     user_agent = models.TextField(null=True, blank=True)
 
     action = models.CharField(max_length=50)  # connected / completed
-    risk_level = models.CharField(max_length=20)
+    risk_level = models.CharField(max_length=20, default="High")
 
     timestamp = models.DateTimeField(auto_now_add=True)
 

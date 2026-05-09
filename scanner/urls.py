@@ -11,7 +11,10 @@ from .views import (
     simulation_dashboard,
     start_simulation,
     stop_simulation,
-    log_simulation
+    log_simulation,
+    simulation_sessions,
+    session_detail,
+    download_session_pdf,
 )
 
 urlpatterns = [
@@ -34,4 +37,12 @@ urlpatterns = [
     path('api/simulation/start/', start_simulation),
     path('api/simulation/stop/', stop_simulation),
     path('api/simulation/log/', log_simulation),
+
+
+    path('simulation/sessions/', simulation_sessions, name='simulation_sessions'),
+    path('simulation/session/<int:session_id>/',session_detail, name='session_detail'),
+
+
+
+    path('simulation/session/<int:session_id>/pdf/', download_session_pdf, name='session_pdf'),
 ]

@@ -1,3 +1,4 @@
+import socket
 from django.shortcuts import render
 from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -33,6 +34,7 @@ def receive_network(request):
 def dashboard(request):
     query = request.GET.get('q')
     filter_type = request.GET.get('filter')
+    auto_stop_inactive_sessions()
 
     latest_ids = (
         NetworkObservation.objects
@@ -127,46 +129,71 @@ def evil_twin_detection(request):
 # =========================================================
 
 # 🔹 Start Simulation
+
 @csrf_exempt
 def start_simulation(request):
     if request.method == "POST":
         data = json.loads(request.body)
-
         name = data.get("name")
+
         if not name:
             return JsonResponse({"error": "Session name required"}, status=400)
 
         session = SimulationSession.objects.create(name=name)
 
+        # 🔥 write command
+        with open("command.txt", "w") as f:
+            f.write("START_SIM")
+
+        # 🔥 store session
+        with open("session.txt", "w") as f:
+            f.write(str(session.id))
+
         return JsonResponse({
             "status": "started",
-            "session_id": session.id,
-            "session_name": session.name
+            "session_id": session.id
         })
 
-    return JsonResponse({"error": "Use POST request"}, status=400)
-
+    return JsonResponse({"error": "Invalid request"}, status=400)
 
 # 🔹 Stop Simulation
+
+from django.utils.timezone import now
+
 @csrf_exempt
 def stop_simulation(request):
     if request.method == "POST":
-        data = json.loads(request.body)
-        session_id = data.get("session_id")
 
-        try:
-            session = SimulationSession.objects.get(id=session_id)
-            session.status = "stopped"
-            session.save()
+        # 🔥 get latest active session
+        session = SimulationSession.objects.filter(status='active').last()
 
-            return JsonResponse({"status": "stopped"})
-        except SimulationSession.DoesNotExist:
-            return JsonResponse({"error": "Session not found"}, status=404)
+        if not session:
+            return JsonResponse({"error": "No active session"}, status=400)
+
+        session.status = "stopped"
+        session.ended_at = now()
+        session.save()
+
+        # 🔥 send STOP command to ESP
+        with open("command.txt", "w") as f:
+            f.write("STOP_SIM")
+
+        # 🔥 clear session tracking
+        open("session.txt", "w").close()
+
+        return JsonResponse({
+            "status": "stopped",
+            "session_id": session.id
+        })
 
     return JsonResponse({"error": "Invalid request"}, status=400)
 
 
+
+
 # 🔹 Log Simulation Activity
+
+
 @csrf_exempt
 def log_simulation(request):
     if request.method == "POST":
@@ -174,36 +201,31 @@ def log_simulation(request):
 
         session_id = data.get("session_id")
         device_id = data.get("device_id")
-        action = data.get("action")
+        action = data.get("action", "connected")
+
+        if not session_id or not device_id:
+            return JsonResponse({"error": "Missing data"}, status=400)
 
         try:
             session = SimulationSession.objects.get(id=session_id)
         except SimulationSession.DoesNotExist:
             return JsonResponse({"error": "Invalid session"}, status=404)
 
-        # 🔥 Risk Logic
-        if action == "connected":
-            risk = "High"
-        elif action == "completed":
-            risk = "Medium"
-        else:
-            risk = "Low"
+        # 🔥 UPDATE LAST ACTIVITY (CRITICAL)
+        session.last_activity = now()
+        session.save()
 
+        # Save result
         SimulationResult.objects.create(
             session=session,
             device_id=device_id,
             action=action,
-            risk_level=risk
+            risk_level="High"
         )
 
-        return JsonResponse({
-            "status": "logged",
-            "risk": risk
-        })
+        return JsonResponse({"status": "logged"})
 
     return JsonResponse({"error": "Invalid request"}, status=400)
-
-
 
 
 # 🔹 Simulation Control Page
@@ -219,10 +241,20 @@ def simulation_control(request):
 def simulation_dashboard(request):
     session_id = request.GET.get("session")
     risk_filter = request.GET.get("risk")
+    auto_stop_inactive_sessions()
 
     sessions = SimulationSession.objects.all().order_by('-id')
-    results = SimulationResult.objects.all()
 
+    latest_ids = (
+        SimulationResult.objects
+        .values('device_id', 'session')
+        .annotate(latest_id=Max('id'))
+        .values_list('latest_id', flat=True)
+    )
+
+    results = SimulationResult.objects.filter(id__in=latest_ids)
+
+    # ✅ SAME INDENT LEVEL
     if session_id:
         results = results.filter(session_id=session_id)
 
@@ -237,3 +269,112 @@ def simulation_dashboard(request):
         "selected_session": session_id,
         "selected_risk": risk_filter
     })
+
+
+
+
+
+from datetime import timedelta
+
+def auto_stop_inactive_sessions():
+    threshold = now() - timedelta(seconds=60)  # 60 sec inactivity
+
+    sessions = SimulationSession.objects.filter(
+        status='active',
+        last_activity__lt=threshold
+    )
+
+    for s in sessions:
+        s.status = 'stopped'
+        s.ended_at = now()
+        s.save()
+
+
+
+
+def simulation_sessions(request):
+    sessions = SimulationSession.objects.all().order_by('-started_at')
+
+    return render(request, "scanner/sessions.html", {
+        "sessions": sessions
+    })
+
+
+def session_detail(request, session_id):
+    session = SimulationSession.objects.get(id=session_id)
+
+    latest_ids = (
+        SimulationResult.objects
+        .filter(session=session)
+        .values('device_id')
+        .annotate(latest_id=Max('id'))
+        .values_list('latest_id', flat=True)
+    )
+
+    results = SimulationResult.objects.filter(id__in=latest_ids).order_by('-timestamp')
+
+    return render(request, "scanner/session_detail.html", {
+        "session": session,
+        "results": results
+    })
+
+
+
+
+from django.http import FileResponse
+from django.db.models import Max, Count
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+
+def download_session_pdf(request, session_id):
+    session = SimulationSession.objects.get(id=session_id)
+
+    latest_ids = (
+        SimulationResult.objects
+        .filter(session=session)
+        .values('device_id')
+        .annotate(latest_id=Max('id'))
+        .values_list('latest_id', flat=True)
+    )
+
+    results = SimulationResult.objects.filter(id__in=latest_ids)
+
+    # 📊 Summary
+    total_devices = results.count()
+    high_risk = results.filter(risk_level="High").count()
+
+    file_path = f"session_{session_id}.pdf"
+    doc = SimpleDocTemplate(file_path)
+    styles = getSampleStyleSheet()
+
+    elements = []
+
+    # Title
+    elements.append(Paragraph(f"Session Report: {session.name}", styles['Title']))
+    elements.append(Paragraph(f"Session ID: {session.id}", styles['Normal']))
+    elements.append(Paragraph(f"Total Devices: {total_devices}", styles['Normal']))
+    elements.append(Paragraph(f"High Risk Devices: {high_risk}", styles['Normal']))
+
+    # Table Data
+    table_data = [["Device", "Action", "Risk", "Time"]]
+
+    for r in results:
+        table_data.append([
+            r.device_id,
+            r.action,
+            r.risk_level,
+            r.timestamp.strftime("%Y-%m-%d %H:%M")
+        ])
+
+    table = Table(table_data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+    ]))
+
+    elements.append(table)
+    doc.build(elements)
+
+    return FileResponse(open(file_path, 'rb'), as_attachment=True)
